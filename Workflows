@@ -1,0 +1,31 @@
+name: Deploy to Oxygen
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: write
+      id-token: write
+    env:
+      OXYGEN_DEPLOYMENT_TOKEN: ${{ secrets.OXYGEN_DEPLOYMENT_TOKEN }}
+      SHOPIFY_HYDROGEN_STORE_DOMAIN: ${{ secrets.SHOPIFY_HYDROGEN_STORE_DOMAIN }}
+      SHOPIFY_STOREFRONT_API_PUBLIC_TOKEN: ${{ secrets.SHOPIFY_STOREFRONT_API_PUBLIC_TOKEN }}
+      NODE_OPTIONS: --max_old_space_size=4096
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install deps
+        run: npm ci
+      - name: Build Hydrogen app
+        run: npm run build
+      - name: Deploy to Oxygen
+        run: npx shopify hydrogen deploy --token=$OXYGEN_DEPLOYMENT_TOKEN
