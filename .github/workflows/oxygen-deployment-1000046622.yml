@@ -1,41 +1,43 @@
-name: Storefront 1000046622
-on: [push]
+name: Deploy to Oxygen
 
-permissions:
-  contents: read
-  deployments: write
+on:
+  push:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
 
 jobs:
   deploy:
     name: Deploy to Oxygen
-    timeout-minutes: 30
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+    permissions:
+      contents: read
+      deployments: write
+      id-token: write
 
-      - name: Setup node.js
+    env:
+      NODE_OPTIONS: --max_old_space_size=4096
+      SHOPIFY_HYDROGEN_STORE_DOMAIN: ${{ secrets.SHOPIFY_HYDROGEN_STORE_DOMAIN }}
+      SHOPIFY_STOREFRONT_API_PUBLIC_TOKEN: ${{ secrets.SHOPIFY_STOREFRONT_API_PUBLIC_TOKEN }}
+      OXYGEN_DEPLOYMENT_TOKEN: ${{ secrets.OXYGEN_DEPLOYMENT_TOKEN }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node 20
         uses: actions/setup-node@v4
         with:
-          node-version: "lts/*"
-          check-latest: true
+          node-version: 20
+          cache: npm
 
-      - name: Cache node modules
-        id: cache-npm
-        uses: actions/cache@v4
-        env:
-          cache-name: cache-node-modules
-        with:
-          path: ~/.npm
-          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('**/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-build-${{ env.cache-name }}-
-            ${{ runner.os }}-build-
-            ${{ runner.os }}-
-
-      - name: Install dependencies
+      - name: Install deps (clean)
         run: npm ci
 
-      - name: Build and Publish to Oxygen
-        run: npx shopify hydrogen deploy
-        env:
-          SHOPIFY_HYDROGEN_DEPLOYMENT_TOKEN: ${{ secrets.OXYGEN_DEPLOYMENT_TOKEN_1000046622 }}
+      - name: Build
+        run: npm run build --workspaces=false
+
+      - name: Verify build output exists
+        run: test -d dist || test -d build || (echo "No build directory found" && exit 1)
+
+      - name: Deploy to Oxygen
+        run: npx shopify oxygen deploy --path=$( [ -d dist ] && echo dist || echo build ) --environment=production --no-color
